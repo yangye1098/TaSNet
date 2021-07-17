@@ -114,7 +114,7 @@ class AudioDataset(Dataset):
 if __name__ == "__main__":
 
     sampleRate = 8000
-    dataRoot = '/home/yangye/Lab/SpeechSeparation/WSJ0-2mix/'
+    dataRoot = ''
     trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2, soundLen=5,  dataType='tr', mixType='max')
 
     # test __getitem__
