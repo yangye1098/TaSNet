@@ -1,4 +1,5 @@
 
+
 import torch
 import os
 from torch import nn
@@ -91,7 +92,7 @@ class AudioDataset(Dataset):
     def _trimOrPadAudio(self, sound):
         currentLength = sound.shape[0]
         if currentLength > self.indexEnd:
-            soundAdjusted = sound[0:self.indexEnd]
+            soundAdjusted = np.copy(sound[0:self.indexEnd])
         else:
             soundAdjusted = np.concatenate((sound, np.zeros(self.indexEnd-currentLength)))
 
@@ -113,7 +114,7 @@ class AudioDataset(Dataset):
 if __name__ == "__main__":
 
     sampleRate = 8000
-    dataRoot = ''
+    dataRoot = '/home/yangye/Lab/SpeechSeparation/WSJ0-2mix/'
     trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2, soundLen=5,  dataType='tr', mixType='max')
 
     # test __getitem__
@@ -122,6 +123,6 @@ if __name__ == "__main__":
     # test dataloader
     train_dataloader = DataLoader(trDataset, batch_size=64, shuffle=True)
     mixture, sources = next(iter(train_dataloader))
-    mixture.shape
-    sources.shape
+    print(mixture.shape)
+    print(sources.shape)
 
