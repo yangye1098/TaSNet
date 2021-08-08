@@ -87,11 +87,11 @@ class AudioDataset(Dataset):
         sr, mixture = wavfile.read(os.path.join(self.dataPath, 'mix', mixName))
         assert sr == self.sampleRate
         mixture = self._trimOrPadAudio(mixture)
-        sources = np.zeros((mixture.shape[0], self.nMix))
+        sources = np.zeros((self.nMix, mixture.shape[0] ))
         for s in range(self.nMix):
             sr , tempSource = wavfile.read(os.path.join(self.dataPath, 's{:d}'.format(s+1), mixName))
             assert sr == self.sampleRate
-            sources[:, s] = self._trimOrPadAudio(tempSource)
+            sources[s, :] = self._trimOrPadAudio(tempSource)
 
         return mixture, sources
 
@@ -111,7 +111,7 @@ class AudioDataset(Dataset):
         play_obj = sa.play_buffer(sound, 1, 16//8, self.sampleRate)
         play_obj.wait_done()
         for s in range(self.nMix):
-            sound = np.ascontiguousarray(sources[:, s], dtype=np.int16)
+            sound = np.ascontiguousarray(sources[s, :], dtype=np.int16)
             play_obj = sa.play_buffer(sound, 1, 16//8, self.sampleRate)
             play_obj.wait_done()
         return
@@ -124,11 +124,13 @@ if __name__ == "__main__":
     trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2, soundLen=5,  dataType='tr', mixType='max')
 
     # test __getitem__
-    trDataset.playIdx(1000)
+    trDataset.playIdx(1)
 
     # test dataloader
-    train_dataloader = DataLoader(trDataset, batch_size=64, shuffle=True)
+    train_dataloader = DataLoader(trDataset, batch_size=2, shuffle=True)
     mixture, sources = next(iter(train_dataloader))
     print(mixture.shape)
     print(sources.shape)
+    print(mixture.type())
+    print(sources.type())
 
