@@ -216,7 +216,7 @@ class Solver(object):
 
             # Check early stopping last 10 epoch doesn't have improvement
             if epoch > 0:
-                if cv_loss[epoch] > cv_loss(epoch-1):
+                if self.cv_loss[epoch] > self.cv_loss(epoch-1):
                     no_improvement_counter += 1
                 else:
                     no_improvement_counter = 0
