@@ -23,13 +23,12 @@ logger.addHandler(fh)
 class Solver(object):
     def __init__(self,
                  tasnet,
-                 num_spk = 2,
                  num_epoches = 20,
                  lr = 3e-4,
                  optimizer = 'adam',
                  save_folder = './savedModel'):
         self.tasnet = tasnet
-        self.num_spk = num_spk
+        self.num_spk = self.tasnet.num_spk
         #self.currentEpoch = 0
         self.num_epoches = num_epoches
 
