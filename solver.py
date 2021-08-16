@@ -1,4 +1,6 @@
+
 import time
+from datetime import timedelta
 import torch
 import logging
 from TasNet import TasNet
@@ -8,14 +10,15 @@ from torch.autograd import Variable
 from utils import prepare_signal
 
 device = torch.device("cpu")
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+
+defaultLogger = logging.getLogger(__name__)
+defaultLogger.setLevel(logging.INFO)
 fh = logging.FileHandler('tasnet.log')
 fh.setLevel(logging.INFO)
 formatter = logging.Formatter(
             "%(asctime)s [%(pathname)s:%(lineno)s - %(levelname)s ] %(message)s")
 fh.setFormatter(formatter)
-logger.addHandler(fh)
+defaultLogger.addHandler(fh)
 
 
 
@@ -26,13 +29,15 @@ class Solver(object):
                  num_epoches = 20,
                  lr = 3e-4,
                  optimizer = 'adam',
-                 save_folder = './savedModel'):
+                 save_folder = './savedModel', 
+                 logger = defaultLogger):
         self.tasnet = tasnet
         self.num_spk = self.tasnet.num_spk
         #self.currentEpoch = 0
         self.num_epoches = num_epoches
 
         self.lr = lr
+        self.logger = logger
         if optimizer == 'adam':
             self.optimizer = torch.optim.Adam(self.tasnet.parameters(),
                                               lr = self.lr)
@@ -50,7 +55,9 @@ class Solver(object):
         self.tr_loss = torch.Tensor(self.num_epoches)
         self.cv_loss = torch.Tensor(self.num_epoches)
 
-
+        self.logger.info(f'Solver initialized.' 
+                f'Total epoches {self.num_epoches}, Learning Rate:{self.lr},' 
+                f'Optimizer:{self.optimizer}, Save Folder:{self.save_folder}')
 
 
         return
@@ -123,7 +130,7 @@ class Solver(object):
 
         num_batches = len(dataloader)
         total_loss = 0
-
+        start = time.time()
         for batch_idx, (mixture, targets) in enumerate(dataloader):
             self.optimizer.zero_grad()
 
@@ -148,10 +155,15 @@ class Solver(object):
             # update
             batch_loss.backward()
             self.optimizer.step()
-
-            if batch_idx % 50 == 0:
+            timeLapsed = time.time() - start
+            if batch_idx > 0 and batch_idx % 20 == 0:
+                estimatedTimeLeft = timeLapsed * ((num_batches/batch_idx) - 1)
+                estimatedTimeLeft = timedelta(seconds=estimatedTimeLeft)
                 # log progress
-                logger.info(f"loss: {batch_loss.item():>7f}  [{batch_idx:>5d}/{num_batches:>5d}]")
+                self.logger.info(f'loss: {batch_loss.item():>.3f}' 
+                        f'[{batch_idx:>5d}/{num_batches:>5d}],'
+                        f'Time Lapsed: {timeLapsed: .1f},'
+                        f'Estimated Time Left for current batch:{estimatedTimeLeft}')
         return total_loss/num_batches
 
     def validate(self, dataloader):
@@ -193,22 +205,30 @@ class Solver(object):
         """
         no_improvement_counter = 0
         for epoch in range(self.num_epoches):
-            logger.info(f'Epoch {epoch+1}')
+            self.logger.info(f'Epoch {epoch+1}')
             start = time.time()
-            logger.info('Start training')
+            self.logger.info('Start training')
             avg_train_loss = self.train(trainLoader)
             self.tr_loss[epoch] = avg_train_loss
-            logger.info(f"Finished. Taining Time: {time.time()-start:.1f}")
-            logger.info(f"Average Train Loss: {avg_train_loss:>.3f}")
-            logger.info('Start Validating')
+            timeLapsed = time.time() - start()
+            
+            estimatedTimeLeft = timeLapsed*((self.num_epoch/(epoch+1)) - 1)
+            estimatedTimeLeft = timedelta(seconds=estimatedTimeLeft)
+            self.logger.info(f"Finished. Taining Time: {timeLapsed:.1f}, Estimated Time Left: {estimatedTimeLeft}")
+            self.logger.info(f"Average Train Loss: {avg_train_loss:>.3f}")
+            self.logger.info('Start Validating')
             avg_cv_loss = self.validate(cvLoader)
             self.cv_loss[epoch] = avg_cv_loss
-            logger.info(f"Finished. Average Validation Loss: {avg_cv_loss:>.3f}")
+            timeLapsed = time.time() - start()
+            estimatedTimeLeft = timeLapsed*((self.num_epoch/(epoch+1)) - 1)
+            estimatedTimeLeft = timedelta(seconds=estimatedTimeLeft)
+            self.logger.info(f"Finished. Validation Time: {timeLapsed:.1f}, Estimated Time Left: {estimatedTimeLeft}")
+            self.logger.info(f"Average Validation Loss: {avg_cv_loss:>.3f}")
 
             # save model
             file_path = self.save_folder / f'epoch{epoch+1}'
             torch.save(self.tasnet.state_dict(), file_path)
-            logger.info(f'Saving model to {file_path}')
+            self.logger.info(f'Saving model to {file_path}')
 
             # Halve the learning rate if no improving by updating scheduler
             self.scheduler.step(avg_cv_loss)
@@ -221,7 +241,7 @@ class Solver(object):
                     no_improvement_counter = 0
 
             if no_improvement_counter > 10:
-                logger.info(f'Early Stop at Epoch {epoch+1}')
+                self.logger.info(f'Early Stop at Epoch {epoch+1}')
                 break
 
         torch.save(self.tr_loss, self.save_folder/'tr_loss.pt')

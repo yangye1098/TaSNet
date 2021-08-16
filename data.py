@@ -6,7 +6,15 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from scipy.io import wavfile
 import numpy as np
-import simpleaudio as sa
+
+
+
+try:
+    import simpleaudio as sa
+    hasAudio = True
+except ModuleNotFoundError:
+    hasAudio = False
+
 
 
 # DataSet
@@ -106,31 +114,59 @@ class AudioDataset(Dataset):
 
     # Test the __getitem__ method and play sounds
     def playIdx(self, idx):
-        mixture, sources = self.__getitem__(idx)
-        sound = np.ascontiguousarray(mixture, dtype=np.int16)
-        play_obj = sa.play_buffer(sound, 1, 16//8, self.sampleRate)
-        play_obj.wait_done()
-        for s in range(self.nMix):
-            sound = np.ascontiguousarray(sources[s, :], dtype=np.int16)
+        if hasAudio:
+            mixture, sources = self.__getitem__(idx)
+            sound = np.ascontiguousarray(mixture, dtype=np.int16)
             play_obj = sa.play_buffer(sound, 1, 16//8, self.sampleRate)
             play_obj.wait_done()
+            for s in range(self.nMix):
+                sound = np.ascontiguousarray(sources[s, :], dtype=np.int16)
+                play_obj = sa.play_buffer(sound, 1, 16//8, self.sampleRate)
+                play_obj.wait_done()
         return
 
 
 if __name__ == "__main__":
 
+
+    
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    fh = logging.FileHandler('tasnet.log')
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+                "%(asctime)s [%(pathname)s:%(lineno)s - %(levelname)s ] %(message)s")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+
     sampleRate = 8000
-    dataRoot = ''
+    dataRoot = '/pub/yey27/SpeechSeparation/WSJ0-2mix/'
     trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2, soundLen=5,  dataType='tr', mixType='max')
 
     # test __getitem__
-    trDataset.playIdx(1)
+    # trDataset.playIdx(1)
 
     # test dataloader
-    train_dataloader = DataLoader(trDataset, batch_size=2, shuffle=True)
+    train_dataloader = DataLoader(trDataset, batch_size=128, shuffle=True)
     mixture, sources = next(iter(train_dataloader))
     print(mixture.shape)
     print(sources.shape)
     print(mixture.type())
     print(sources.type())
 
+
+    cvDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2,
+            soundLen=5,  dataType='cv', mixType='max')
+
+    # test __getitem__
+    # trDataset.playIdx(1)
+
+    # test dataloader
+    cv_dataloader = DataLoader(cvDataset, batch_size=128, shuffle=True)
+    mixture, sources = next(iter(cv_dataloader))
+
+    print(mixture.shape)
+    print(sources.shape)
+    print(mixture.type())
+    print(sources.type())

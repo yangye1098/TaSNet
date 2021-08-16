@@ -3,29 +3,42 @@ from TasNet import TasNet
 from data import AudioDataset
 from torch.utils.data import DataLoader
 import torch
-
+import logging
 
 if __name__ == '__main__':
 
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    fh = logging.FileHandler('tasnet.log')
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+                "%(asctime)s [%(pathname)s:%(lineno)s - %(levelname)s ] %(message)s")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+   
     sampleRate = 8000
-    dataRoot = '/home/yangye/Lab/SpeechSeparation/WSJ0_2mix_test/'
-    trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2, soundLen=5,  dataType='tr', mixType='max')
-    tr_dataloader = DataLoader(trDataset, batch_size=2, shuffle=True)
+    batch_size = 128
+    num_spk = 2
+    dataRoot = '/pub/yey27/SpeechSeparation/WSJ0-2mix/'
+    trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=num_spk, soundLen=5,  dataType='tr', mixType='max')
+    tr_dataloader = DataLoader(trDataset, batch_size=batch_size, shuffle=True)
 
-    cvDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=2, soundLen=5,  dataType='cv', mixType='max')
+    cvDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=num_spk, soundLen=5,  dataType='cv', mixType='max')
+    cv_dataloader = DataLoader(cvDataset, batch_size=batch_size, shuffle=True)
 
-    cv_dataloader = DataLoader(cvDataset, batch_size=2, shuffle=True)
-
-    N = 512
+    N = 500
     L = int(sampleRate*5/1000)
     stride = L//2
-    num_spk = 2
     hidden_size = 1000
     num_layers = 4
     bidirection = False
-    tasnet = TasNet(N, L, stride, num_spk, hidden_size, num_layers, bidirection  )
+    tasnet = TasNet(N, L, stride, num_spk, hidden_size, num_layers, bidirection )
 
-    solver = Solver(tasnet, num_epoches = 2)
+    logger.info(f"Start TasNet optimization. Parameters: Batch Size: {batch_size}, "
+            f"Number of Speaker:{num_spk}, Sample Rate:{sampleRate}, N:{N}, L:{L}, "
+            f"Stride:{stride}, Hidden Size:{hidden_size}, Number of LSTM Layers:{num_layers}, "
+            f"Bidirectional: {bidirection}")
+    solver = Solver(tasnet, num_epoches = 20, logger = logger)
     solver.run(tr_dataloader, cv_dataloader)
 
 
