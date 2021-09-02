@@ -9,7 +9,8 @@ from pathlib import Path
 from torch.autograd import Variable
 from utils import prepare_signal
 
-device = torch.device("cpu")
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 defaultLogger = logging.getLogger(__name__)
 defaultLogger.setLevel(logging.INFO)
@@ -135,8 +136,8 @@ class Solver(object):
             self.optimizer.zero_grad()
 
             if torch.cuda.is_available():
-                mixture = mixture.to_cuda()
-                targets = targets.to_cuda()
+                mixture = mixture.to(device)
+                targets = targets.to(device)
 
             mixture = mixture.type(torch.float)
             targets = targets.type(torch.float)
@@ -156,14 +157,14 @@ class Solver(object):
             batch_loss.backward()
             self.optimizer.step()
             timeLapsed = time.time() - start
-            if batch_idx > 0 and batch_idx % 20 == 0:
+            if batch_idx > 0 and batch_idx % 5 == 0:
                 estimatedTimeLeft = timeLapsed * ((num_batches/batch_idx) - 1)
                 estimatedTimeLeft = timedelta(seconds=estimatedTimeLeft)
                 # log progress
                 self.logger.info(f'loss: {batch_loss.item():>.3f}' 
                         f'[{batch_idx:>5d}/{num_batches:>5d}],'
                         f'Time Lapsed: {timeLapsed: .1f},'
-                        f'Estimated Time Left for current batch:{estimatedTimeLeft}')
+                        f'Estimated Time Left for current epoch:{estimatedTimeLeft}')
         return total_loss/num_batches
 
     def validate(self, dataloader):
@@ -181,8 +182,8 @@ class Solver(object):
             for mixture, targets in dataloader:
 
                 if torch.cuda.is_available():
-                    mixture = mixture.to_cuda()
-                    targets = targets.to_cuda()
+                    mixture = mixture.to(device)
+                    targets = targets.to(device)
 
                 mixture = mixture.type(torch.float)
                 targets = targets.type(torch.float)
@@ -210,17 +211,17 @@ class Solver(object):
             self.logger.info('Start training')
             avg_train_loss = self.train(trainLoader)
             self.tr_loss[epoch] = avg_train_loss
-            timeLapsed = time.time() - start()
+            timeLapsed = time.time() - start
             
-            estimatedTimeLeft = timeLapsed*((self.num_epoch/(epoch+1)) - 1)
+            estimatedTimeLeft = timeLapsed*((self.num_epoches/(epoch+1)) - 1)
             estimatedTimeLeft = timedelta(seconds=estimatedTimeLeft)
             self.logger.info(f"Finished. Taining Time: {timeLapsed:.1f}, Estimated Time Left: {estimatedTimeLeft}")
             self.logger.info(f"Average Train Loss: {avg_train_loss:>.3f}")
             self.logger.info('Start Validating')
             avg_cv_loss = self.validate(cvLoader)
             self.cv_loss[epoch] = avg_cv_loss
-            timeLapsed = time.time() - start()
-            estimatedTimeLeft = timeLapsed*((self.num_epoch/(epoch+1)) - 1)
+            timeLapsed = time.time() - start
+            estimatedTimeLeft = timeLapsed*((self.num_epoches/(epoch+1)) - 1)
             estimatedTimeLeft = timedelta(seconds=estimatedTimeLeft)
             self.logger.info(f"Finished. Validation Time: {timeLapsed:.1f}, Estimated Time Left: {estimatedTimeLeft}")
             self.logger.info(f"Average Validation Loss: {avg_cv_loss:>.3f}")
@@ -233,6 +234,8 @@ class Solver(object):
             # Halve the learning rate if no improving by updating scheduler
             self.scheduler.step(avg_cv_loss)
 
+            torch.save(self.tr_loss, self.save_folder/'tr_loss.pt')
+            torch.save(self.cv_loss, self.save_folder/'cv_loss.pt')
             # Check early stopping last 10 epoch doesn't have improvement
             if epoch > 0:
                 if self.cv_loss[epoch] > self.cv_loss[epoch-1]:
@@ -244,8 +247,7 @@ class Solver(object):
                 self.logger.info(f'Early Stop at Epoch {epoch+1}')
                 break
 
-        torch.save(self.tr_loss, self.save_folder/'tr_loss.pt')
-        torch.save(self.cv_loss, self.save_folder/'cv_loss.pt')
+
         return
 
     def resume():
@@ -267,6 +269,9 @@ if __name__ == '__main__':
     num_layers = 4
 
     tasnet = TasNet(N, L, stride, num_spk, hidden_size, num_layers)
+    if torch.cuda.is_available():
+        tasnet.to_cuda()
+
     solver = Solver(tasnet)
 
 

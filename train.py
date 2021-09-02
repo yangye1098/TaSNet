@@ -6,7 +6,7 @@ import torch
 import logging
 
 if __name__ == '__main__':
-
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     fh = logging.FileHandler('tasnet.log')
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     logger.addHandler(fh)
    
     sampleRate = 8000
-    batch_size = 128
+    batch_size = 32
     num_spk = 2
     dataRoot = '/pub/yey27/SpeechSeparation/WSJ0-2mix/'
     trDataset = AudioDataset(dataRoot, sampleRate=sampleRate, nMix=num_spk, soundLen=5,  dataType='tr', mixType='max')
@@ -38,6 +38,9 @@ if __name__ == '__main__':
             f"Number of Speaker:{num_spk}, Sample Rate:{sampleRate}, N:{N}, L:{L}, "
             f"Stride:{stride}, Hidden Size:{hidden_size}, Number of LSTM Layers:{num_layers}, "
             f"Bidirectional: {bidirection}")
+    if torch.cuda.is_available():
+        tasnet.to(device)
+        logger.info("Train on gpu")
     solver = Solver(tasnet, num_epoches = 20, logger = logger)
     solver.run(tr_dataloader, cv_dataloader)
 
